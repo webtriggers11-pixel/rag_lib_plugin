@@ -21,6 +21,40 @@ interface Message {
   isError?: boolean
 }
 
+const CSS = `
+  @keyframes rag-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+  @keyframes rag-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  @keyframes rag-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(168, 85, 247, 0.2); }
+    50% { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6), 0 0 60px rgba(168, 85, 247, 0.3); }
+  }
+  @keyframes rag-shine {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .rag-chat-open-btn:hover { animation: rag-float 1.5s ease-in-out infinite; }
+  .rag-chat-open-btn { animation: rag-glow 2.5s ease-in-out infinite; }
+  .rag-chat-dot { animation: rag-pulse 1.2s ease-in-out infinite; }
+  .rag-chat-dot:nth-child(2) { animation-delay: 0.15s; }
+  .rag-chat-dot:nth-child(3) { animation-delay: 0.3s; }
+  .rag-chat-input::placeholder { color: rgba(255, 255, 255, 0.4); }
+  .rag-chat-input:focus { box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.2); }
+  .rag-chat-send:hover { filter: brightness(1.15); transform: scale(1.02); }
+  .rag-chat-cancel:hover { background: rgba(255, 82, 82, 0.2); }
+  .rag-chat-hide:hover { background: rgba(255,255,255,0.1); }
+  .rag-chat-panel-enter { animation: rag-panel-in 0.3s ease-out; }
+  @keyframes rag-panel-in {
+    from { opacity: 0; transform: scale(0.92) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+`
+
 export function ChatUI({
   apiKey,
   baseUrl,
@@ -89,11 +123,15 @@ export function ChatUI({
   const panel = (
     <div className={className} style={styles.container}>
       <div style={styles.header}>
-        <h2 style={styles.title}>{title}</h2>
+        <div style={styles.titleRow}>
+          <span style={styles.titleIcon}>◆</span>
+          <h2 style={styles.title}>{title}</h2>
+        </div>
         {floating && (
           <button
             type="button"
             onClick={() => setIsOpen(false)}
+            className="rag-chat-hide"
             style={styles.hideCta}
             aria-label="Hide chat"
           >
@@ -105,6 +143,7 @@ export function ChatUI({
         <div style={styles.messages}>
           {messages.length === 0 && !loading && (
             <div style={styles.emptyState}>
+              <div style={styles.emptyIcon}>💬</div>
               <p style={styles.emptyText}>Ask questions about your docs.</p>
               <p style={styles.emptySubtext}>Answers are based on the documents uploaded for your organization.</p>
             </div>
@@ -130,9 +169,9 @@ export function ChatUI({
           {loading && (
             <div style={{ ...styles.messageRow, justifyContent: 'flex-start' }}>
               <div style={{ ...styles.bubble, ...styles.bubbleAssistant, ...styles.typingIndicator }}>
-                <span style={styles.dot}>.</span>
-                <span style={styles.dot}>.</span>
-                <span style={styles.dot}>.</span>
+                <span className="rag-chat-dot" style={styles.dot} />
+                <span className="rag-chat-dot" style={styles.dot} />
+                <span className="rag-chat-dot" style={styles.dot} />
               </div>
             </div>
           )}
@@ -146,15 +185,16 @@ export function ChatUI({
           onChange={(e) => setQuestion(e.target.value)}
           placeholder={placeholder}
           disabled={loading}
+          className="rag-chat-input"
           style={styles.input}
         />
         {loading ? (
-          <button type="button" onClick={handleCancel} style={styles.cancelCta}>
+          <button type="button" onClick={handleCancel} className="rag-chat-cancel" style={styles.cancelCta}>
             Cancel
           </button>
         ) : (
-          <button type="submit" style={styles.sendCta} aria-label="Send">
-            Send
+          <button type="submit" className="rag-chat-send" style={styles.sendCta} aria-label="Send">
+            →
           </button>
         )}
       </form>
@@ -162,27 +202,48 @@ export function ChatUI({
     </div>
   )
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const id = 'rag-chat-ui-font'
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'stylesheet'
+    link.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap'
+    document.head.appendChild(link)
+    return () => { link.remove() }
+  }, [])
+
   if (floating) {
     return (
-      <div style={styles.widgetWrap}>
-        {isOpen && (
-          <div style={styles.panelOverlay}>
-            <div style={styles.panel}>{panel}</div>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          style={styles.openCta}
-          aria-label="Open chat"
-        >
-          Chat
-        </button>
-      </div>
+      <>
+        <style>{CSS}</style>
+        <div style={styles.widgetWrap}>
+          {isOpen && (
+            <div style={styles.panelOverlay}>
+              <div className="rag-chat-panel-enter" style={styles.panel}>{panel}</div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="rag-chat-open-btn"
+            style={styles.openCta}
+            aria-label="Open chat"
+          >
+            <span style={styles.openCtaIcon}>💬</span>
+          </button>
+        </div>
+      </>
     )
   }
 
-  return panel
+  return (
+    <>
+      <style>{CSS}</style>
+      {panel}
+    </>
+  )
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -191,19 +252,24 @@ const styles: Record<string, React.CSSProperties> = {
     bottom: 24,
     right: 24,
     zIndex: 9999,
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontFamily: '"DM Sans", "Segoe UI", system-ui, sans-serif',
   },
   openCta: {
-    width: 56,
-    height: 56,
+    width: 64,
+    height: 64,
     borderRadius: '50%',
-    border: 'none',
-    backgroundColor: '#5c4d9c',
+    border: '2px solid rgba(0, 212, 255, 0.5)',
+    background: 'linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%)',
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 600,
+    fontSize: 28,
     cursor: 'pointer',
-    boxShadow: '0 4px 14px rgba(92, 77, 156, 0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'transform 0.2s, filter 0.2s',
+  },
+  openCtaIcon: {
+    filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
   },
   panelOverlay: {
     position: 'fixed' as const,
@@ -212,52 +278,68 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
-    padding: '24px 24px 80px 24px',
+    padding: '24px 24px 96px 24px',
     boxSizing: 'border-box' as const,
+    background: 'radial-gradient(ellipse at bottom right, rgba(0,212,255,0.08) 0%, transparent 50%)',
   },
   panel: {
     width: '100%',
     maxWidth: 420,
-    height: 'min(560px, 80vh)',
-    borderRadius: 16,
+    height: 'min(580px, 82vh)',
+    borderRadius: 24,
     overflow: 'hidden',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-    backgroundColor: '#fff',
+    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06), 0 0 60px -15px rgba(168, 85, 247, 0.3)',
+    background: 'linear-gradient(180deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 18, 0.98) 100%)',
+    backdropFilter: 'blur(20px)',
   },
   container: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontFamily: '"DM Sans", "Segoe UI", system-ui, sans-serif',
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
     minHeight: 320,
-    backgroundColor: '#fff',
+    background: 'linear-gradient(180deg, rgba(15, 15, 25, 0.98) 0%, rgba(10, 10, 18, 0.99) 100%)',
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexShrink: 0,
-    padding: '14px 16px',
-    borderBottom: '1px solid #eee',
+    padding: '16px 20px',
+    background: 'linear-gradient(90deg, rgba(0, 212, 255, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  titleIcon: {
+    color: '#00d4ff',
+    fontSize: 14,
   },
   title: {
     margin: 0,
-    fontSize: '1.125rem',
-    fontWeight: 600,
-    color: '#1a1a1a',
+    fontSize: '1.2rem',
+    fontWeight: 700,
+    background: 'linear-gradient(90deg, #fff 0%, #a0a0b0 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   hideCta: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    border: 'none',
-    backgroundColor: 'transparent',
-    color: '#666',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    border: '1px solid rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 18,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'background 0.2s',
   },
   messagesWrap: {
     flex: 1,
@@ -269,113 +351,133 @@ const styles: Record<string, React.CSSProperties> = {
   messages: {
     flex: 1,
     overflowY: 'auto',
-    padding: '12px 16px',
+    padding: '16px 20px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 14,
   },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '24px 16px',
+    padding: '32px 20px',
     textAlign: 'center' as const,
-    minHeight: 160,
+    minHeight: 180,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+    opacity: 0.9,
   },
   emptyText: {
     margin: 0,
-    fontSize: 15,
-    fontWeight: 500,
-    color: '#333',
+    fontSize: 17,
+    fontWeight: 600,
+    color: 'rgba(255, 255, 255, 0.95)',
   },
   emptySubtext: {
-    margin: '4px 0 0 0',
+    margin: '8px 0 0 0',
     fontSize: 13,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.5)',
+    lineHeight: 1.5,
   },
   messageRow: {
     display: 'flex',
     width: '100%',
   },
   bubble: {
-    maxWidth: '85%',
-    padding: '10px 14px',
-    borderRadius: 16,
+    maxWidth: '88%',
+    padding: '12px 18px',
+    borderRadius: 18,
     fontSize: 14,
-    lineHeight: 1.45,
+    lineHeight: 1.5,
     wordBreak: 'break-word' as const,
   },
   bubbleUser: {
-    backgroundColor: '#5c4d9c',
+    background: 'linear-gradient(135deg, #00d4ff 0%, #a855f7 100%)',
     color: '#fff',
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
+    boxShadow: '0 4px 20px rgba(0, 212, 255, 0.25)',
   },
   bubbleAssistant: {
-    backgroundColor: '#f0f0f0',
-    color: '#1a1a1a',
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: 'rgba(255, 255, 255, 0.9)',
+    borderBottomLeftRadius: 6,
+    border: '1px solid rgba(255, 255, 255, 0.06)',
   },
   bubbleError: {
-    backgroundColor: '#ffebee',
-    color: '#b71c1c',
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(255, 82, 82, 0.15)',
+    color: '#ff6b6b',
+    borderBottomLeftRadius: 6,
+    border: '1px solid rgba(255, 82, 82, 0.3)',
   },
   typingIndicator: {
     display: 'flex',
-    gap: 4,
-    padding: '12px 16px',
+    gap: 6,
+    padding: '14px 20px',
   },
   dot: {
-    width: 6,
-    height: 6,
+    width: 8,
+    height: 8,
     borderRadius: '50%',
-    backgroundColor: '#888',
+    backgroundColor: '#00d4ff',
   },
   form: {
     display: 'flex',
-    gap: 8,
+    gap: 10,
     flexShrink: 0,
-    padding: '12px 16px',
-    borderTop: '1px solid #eee',
+    padding: '16px 20px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'rgba(0, 0, 0, 0.2)',
   },
   input: {
     flex: 1,
-    padding: '10px 16px',
-    border: '1px solid #ddd',
-    borderRadius: 24,
+    padding: '14px 20px',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    borderRadius: 16,
     fontSize: 14,
     outline: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    color: '#fff',
+    transition: 'box-shadow 0.2s, border-color 0.2s',
   },
   sendCta: {
-    padding: '10px 20px',
-    backgroundColor: '#5c4d9c',
+    width: 48,
+    height: 48,
+    padding: 0,
+    background: 'linear-gradient(135deg, #00d4ff 0%, #a855f7 100%)',
     color: '#fff',
     border: 'none',
-    borderRadius: 24,
+    borderRadius: 14,
     cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 500,
+    fontSize: 22,
+    fontWeight: 600,
     flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'filter 0.2s, transform 0.2s',
   },
   cancelCta: {
-    padding: '10px 16px',
+    padding: '14px 18px',
     backgroundColor: 'transparent',
-    color: '#b71c1c',
-    border: '1px solid #ef5350',
-    borderRadius: 24,
+    color: '#ff5252',
+    border: '1px solid rgba(255, 82, 82, 0.5)',
+    borderRadius: 14,
     cursor: 'pointer',
     fontSize: 14,
-    fontWeight: 500,
+    fontWeight: 600,
     flexShrink: 0,
+    transition: 'background 0.2s',
   },
   errorBar: {
     margin: 0,
-    padding: '8px 16px',
-    backgroundColor: '#ffebee',
-    color: '#b71c1c',
+    padding: '10px 20px',
+    background: 'rgba(255, 82, 82, 0.15)',
+    color: '#ff6b6b',
     fontSize: 12,
-    borderRadius: 0,
+    borderTop: '1px solid rgba(255, 82, 82, 0.2)',
     flexShrink: 0,
   },
 }
