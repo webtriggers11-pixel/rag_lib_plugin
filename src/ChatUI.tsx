@@ -11,6 +11,8 @@ export interface ChatUIProps {
   title?: string
   /** Optional CSS class for the container. */
   className?: string
+  /** When true, show as floating widget with open/hide CTA. Default true. */
+  floating?: boolean
 }
 
 interface Message {
@@ -19,18 +21,35 @@ interface Message {
   isError?: boolean
 }
 
-export function ChatUI({ apiKey, baseUrl, placeholder = 'Ask a question…', title = 'Chat', className }: ChatUIProps) {
+export function ChatUI({
+  apiKey,
+  baseUrl,
+  placeholder = 'Ask a question…',
+  title = 'Product Q&A',
+  className,
+  floating = true,
+}: ChatUIProps) {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(!floating)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const url = baseUrl.replace(/\/$/, '') + '/rag/query'
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  function handleCancel() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setLoading(false)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +59,7 @@ export function ChatUI({ apiKey, baseUrl, placeholder = 'Ask a question…', tit
     setMessages((prev) => [...prev, { role: 'user', content: q }])
     setLoading(true)
     setError(null)
+    abortControllerRef.current = new AbortController()
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -48,6 +68,7 @@ export function ChatUI({ apiKey, baseUrl, placeholder = 'Ask a question…', tit
           'X-API-Key': apiKey,
         },
         body: JSON.stringify({ question: q }),
+        signal: abortControllerRef.current.signal,
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -55,17 +76,31 @@ export function ChatUI({ apiKey, baseUrl, placeholder = 'Ask a question…', tit
       }
       setMessages((prev) => [...prev, { role: 'assistant', content: data.answer ?? '' }])
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : 'Something went wrong'
       setError(msg)
       setMessages((prev) => [...prev, { role: 'assistant', content: msg, isError: true }])
     } finally {
+      abortControllerRef.current = null
       setLoading(false)
     }
   }
 
-  return (
+  const panel = (
     <div className={className} style={styles.container}>
-      {title && <h2 style={styles.title}>{title}</h2>}
+      <div style={styles.header}>
+        <h2 style={styles.title}>{title}</h2>
+        {floating && (
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            style={styles.hideCta}
+            aria-label="Hide chat"
+          >
+            ✕
+          </button>
+        )}
+      </div>
       <div style={styles.messagesWrap}>
         <div style={styles.messages}>
           {messages.length === 0 && !loading && (
@@ -113,16 +148,82 @@ export function ChatUI({ apiKey, baseUrl, placeholder = 'Ask a question…', tit
           disabled={loading}
           style={styles.input}
         />
-        <button type="submit" disabled={loading} style={styles.button}>
-          Send
-        </button>
+        {loading ? (
+          <button type="button" onClick={handleCancel} style={styles.cancelCta}>
+            Cancel
+          </button>
+        ) : (
+          <button type="submit" style={styles.sendCta} aria-label="Send">
+            Send
+          </button>
+        )}
       </form>
       {error && <p style={styles.errorBar}>{error}</p>}
     </div>
   )
+
+  if (floating) {
+    return (
+      <div style={styles.widgetWrap}>
+        {isOpen && (
+          <div style={styles.panelOverlay}>
+            <div style={styles.panel}>{panel}</div>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          style={styles.openCta}
+          aria-label="Open chat"
+        >
+          Chat
+        </button>
+      </div>
+    )
+  }
+
+  return panel
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  widgetWrap: {
+    position: 'fixed' as const,
+    bottom: 24,
+    right: 24,
+    zIndex: 9999,
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+  },
+  openCta: {
+    width: 56,
+    height: 56,
+    borderRadius: '50%',
+    border: 'none',
+    backgroundColor: '#5c4d9c',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 4px 14px rgba(92, 77, 156, 0.4)',
+  },
+  panelOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    zIndex: 9998,
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    padding: '24px 24px 80px 24px',
+    boxSizing: 'border-box' as const,
+  },
+  panel: {
+    width: '100%',
+    maxWidth: 420,
+    height: 'min(560px, 80vh)',
+    borderRadius: 16,
+    overflow: 'hidden',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+    backgroundColor: '#fff',
+  },
   container: {
     fontFamily: 'system-ui, -apple-system, sans-serif',
     display: 'flex',
@@ -131,12 +232,32 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 320,
     backgroundColor: '#fff',
   },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexShrink: 0,
+    padding: '14px 16px',
+    borderBottom: '1px solid #eee',
+  },
   title: {
-    margin: '0 0 12px 0',
+    margin: 0,
     fontSize: '1.125rem',
     fontWeight: 600,
     color: '#1a1a1a',
-    flexShrink: 0,
+  },
+  hideCta: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#666',
+    fontSize: 18,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   messagesWrap: {
     flex: 1,
@@ -148,7 +269,7 @@ const styles: Record<string, React.CSSProperties> = {
   messages: {
     flex: 1,
     overflowY: 'auto',
-    padding: '12px 0',
+    padding: '12px 16px',
     display: 'flex',
     flexDirection: 'column',
     gap: 12,
@@ -186,7 +307,7 @@ const styles: Record<string, React.CSSProperties> = {
     wordBreak: 'break-word' as const,
   },
   bubbleUser: {
-    backgroundColor: '#1976d2',
+    backgroundColor: '#5c4d9c',
     color: '#fff',
     borderBottomRightRadius: 4,
   },
@@ -215,35 +336,46 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 8,
     flexShrink: 0,
-    paddingTop: 12,
+    padding: '12px 16px',
     borderTop: '1px solid #eee',
   },
   input: {
     flex: 1,
-    padding: '10px 14px',
+    padding: '10px 16px',
     border: '1px solid #ddd',
-    borderRadius: 20,
+    borderRadius: 24,
     fontSize: 14,
     outline: 'none',
   },
-  button: {
+  sendCta: {
     padding: '10px 20px',
-    backgroundColor: '#1976d2',
+    backgroundColor: '#5c4d9c',
     color: '#fff',
     border: 'none',
-    borderRadius: 20,
+    borderRadius: 24,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 500,
+    flexShrink: 0,
+  },
+  cancelCta: {
+    padding: '10px 16px',
+    backgroundColor: 'transparent',
+    color: '#b71c1c',
+    border: '1px solid #ef5350',
+    borderRadius: 24,
     cursor: 'pointer',
     fontSize: 14,
     fontWeight: 500,
     flexShrink: 0,
   },
   errorBar: {
-    margin: '8px 0 0 0',
-    padding: 8,
+    margin: 0,
+    padding: '8px 16px',
     backgroundColor: '#ffebee',
     color: '#b71c1c',
     fontSize: 12,
-    borderRadius: 8,
+    borderRadius: 0,
     flexShrink: 0,
   },
 }
